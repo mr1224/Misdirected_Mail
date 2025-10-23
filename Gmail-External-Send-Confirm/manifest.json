@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Gmail External Send Confirm",
+  "version": "0.1.0",
+  "description": "社外宛先が含まれる場合、送信前に確認ポップアップとカウントダウンで誤送信を防止します。",
+  "host_permissions": [
+    "https://mail.google.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://mail.google.com/*"],
+      "js": ["content/inject.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["page/page.js"],
+      "matches": ["https://mail.google.com/*"]
+    }
+  ]
+}
