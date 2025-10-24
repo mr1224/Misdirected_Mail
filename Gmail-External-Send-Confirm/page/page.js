@@ -159,28 +159,32 @@ function isExternalDomain(email) {
   return !INTERNAL_DOMAINS.some((d) => domain === d || domain.endsWith(`.${d}`));
 }
 
-// カウントダウン付きモーダル（Trusted Types 対応）
-function showCountdownModal(externals, seconds = 3) {
+// チェックリスト式モーダル（全チェックで送信可能・全選択なし）
+function showCountdownModal(externals, _secondsIgnored = 0) {
   return new Promise((resolve) => {
+    // 既存UIの掃除
     document.getElementById("gesc-overlay")?.remove();
     document.getElementById("gesc-style")?.remove();
 
+    // スタイル
     const style = document.createElement("style");
     style.id = "gesc-style";
     style.textContent = `
 #gesc-overlay { position: fixed; inset: 0; z-index: 2147483647; background: rgba(0,0,0,0.35); display: flex; align-items: center; justify-content: center; font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans JP", sans-serif; }
-#gesc-modal { background: #fff; color: #111; width: 520px; max-width: 90vw; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); padding: 20px 20px 16px; }
+#gesc-modal { background: #fff; color: #111; width: 560px; max-width: 92vw; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); padding: 20px 20px 16px; }
 #gesc-title { font-size: 16px; font-weight: 700; margin: 0 0 12px; }
 #gesc-note { font-size: 13px; color: #444; margin: 6px 0 12px; }
-#gesc-list { background: #f7f7f7; border-radius: 8px; padding: 10px; margin: 8px 0 14px; max-height: 160px; overflow: auto; font-size: 13px; }
+#gesc-list { background: #f7f7f7; border-radius: 8px; padding: 10px; margin: 8px 0 14px; max-height: 200px; overflow: auto; font-size: 13px; }
+.gesc-row { display: flex; align-items: center; gap: 8px; padding: 6px 4px; }
+.gesc-email { word-break: break-all; }
 #gesc-actions { display: flex; gap: 8px; justify-content: flex-end; align-items: center; }
+#gesc-remaining { margin-right: auto; font-size: 12px; color: #555; }
 .gesc-btn { border: 1px solid #d0d0d0; background: #fff; border-radius: 8px; padding: 8px 14px; font-size: 13px; cursor: pointer; }
 .gesc-btn.primary { background: #1a73e8; border-color: #1a73e8; color: #fff; }
-.gesc-btn[disabled] { opacity: 0.6; cursor: not-allowed; }
-#gesc-count { margin-right: auto; color: #666; font-size: 12px; }
-    `;
+.gesc-btn[disabled] { opacity: 0.6; cursor: not-allowed; }`;
     document.documentElement.appendChild(style);
 
+    // ルート
     const overlay = document.createElement("div");
     overlay.id = "gesc-overlay";
     overlay.setAttribute("role", "presentation");
@@ -192,77 +196,86 @@ function showCountdownModal(externals, seconds = 3) {
     modal.setAttribute("aria-labelledby", "gesc-title");
     modal.tabIndex = -1;
 
+    // タイトル・説明
     const title = document.createElement("h2");
     title.id = "gesc-title";
     title.textContent = "社外宛先を検出しました。送信してよろしいですか？";
 
     const note = document.createElement("div");
     note.id = "gesc-note";
-    note.append(document.createTextNode("次の宛先が "));
-    const strong = document.createElement("b");
-    strong.textContent = "組織外ドメイン";
-    note.append(strong, document.createTextNode(" です。内容・宛先を再確認してください。"));
+    note.append(
+      document.createTextNode("次の宛先は "),
+      (() => { const b = document.createElement("b"); b.textContent = "組織外ドメイン"; return b; })(),
+      document.createTextNode(" です。各宛先の確認チェックを入れてください。")
+    );
 
+    // リスト（チェックボックス付き）
     const list = document.createElement("div");
     list.id = "gesc-list";
-    externals.forEach((e) => {
-      const item = document.createElement("div");
-      item.textContent = `・${e}`;
-      list.appendChild(item);
+
+    const uniq = Array.from(new Set(externals.map((e) => String(e).toLowerCase())));
+    const checkboxes = [];
+    uniq.forEach((addr, idx) => {
+      const row = document.createElement("label");
+      row.className = "gesc-row";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.id = `gesc-cb-${idx}`;
+      cb.setAttribute("data-email", addr);
+      const span = document.createElement("span");
+      span.className = "gesc-email";
+      span.textContent = addr;
+      row.append(cb, span);
+      list.appendChild(row);
+      checkboxes.push(cb);
     });
 
+    // アクション
     const actions = document.createElement("div");
     actions.id = "gesc-actions";
 
-    const $count = document.createElement("span");
-    $count.id = "gesc-count";
+    // 残数表示
+    const remaining = document.createElement("span");
+    remaining.id = "gesc-remaining";
 
-    const $cancel = document.createElement("button");
-    $cancel.className = "gesc-btn";
-    $cancel.id = "gesc-cancel";
-    $cancel.textContent = "編集に戻る";
+    const cancel = document.createElement("button");
+    cancel.className = "gesc-btn";
+    cancel.id = "gesc-cancel";
+    cancel.textContent = "編集に戻る";
 
-    const $ok = document.createElement("button");
-    $ok.className = "gesc-btn primary";
-    $ok.id = "gesc-ok";
-    $ok.textContent = "送信する";
-    $ok.disabled = true;
+    const ok = document.createElement("button");
+    ok.className = "gesc-btn primary";
+    ok.id = "gesc-ok";
+    ok.textContent = "送信する";
+    ok.disabled = true;
 
-    actions.append($count, $cancel, $ok);
+    actions.append(remaining, cancel, ok);
     modal.append(title, note, list, actions);
     overlay.appendChild(modal);
     document.documentElement.appendChild(overlay);
-
     modal.focus();
 
-    // カウントダウン
-    let remain = Math.max(0, seconds | 0);
-    const update = () => ($count.textContent = remain <= 0 ? "送信可能です" : `確認まで ${remain} 秒`);
-    update();
-    const timer = setInterval(() => {
-      remain -= 1;
-      if (remain <= 0) {
-        clearInterval(timer);
-        update();
-        $ok.disabled = false;
-      } else {
-        update();
-      }
-    }, 1000);
-
-    const cleanup = () => {
-      clearInterval(timer);
-      overlay.remove();
-      style.remove();
+    // 有効化条件：全チェック
+    const updateState = () => {
+      const total = checkboxes.length;
+      const checked = checkboxes.filter(c => c.checked).length;
+      const left = total - checked;
+      ok.disabled = (left > 0);
+      remaining.textContent = left > 0 ? `未チェック: ${left} 件` : "すべて確認済みです";
     };
+    checkboxes.forEach((c) => c.addEventListener("change", updateState));
+    updateState();
 
-    $cancel.addEventListener("click", () => { cleanup(); resolve(false); });
-    $ok.addEventListener("click", () => { if ($ok.disabled) return; cleanup(); resolve(true); });
-
+    // キーボード
     overlay.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") { e.preventDefault(); $cancel.click(); }
-      else if (e.key === "Enter" && !$ok.disabled) { e.preventDefault(); $ok.click(); }
+      if (e.key === "Escape") { e.preventDefault(); cancel.click(); }
+      else if (e.key === "Enter" && !ok.disabled) { e.preventDefault(); ok.click(); }
     });
+
+    // 後片付け
+    const cleanup = () => { overlay.remove(); style.remove(); };
+    cancel.addEventListener("click", () => { cleanup(); resolve(false); });
+    ok.addEventListener("click", () => { if (ok.disabled) return; cleanup(); resolve(true); });
   });
 }
 

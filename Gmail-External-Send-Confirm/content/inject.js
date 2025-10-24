@@ -1,4 +1,4 @@
-// Inject InboxSDK and the page script into Gmail's page context.
+// Inject page script into Gmail's page context.
 (function inject() {
   try {
     // Avoid double injection when Gmail updates the view dynamically.
